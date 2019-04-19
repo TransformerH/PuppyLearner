@@ -24,25 +24,14 @@ def choose_device(use_cuda=True):
 
 
 def start(args):
-    train_model(batch_size=args.batch_size,
-                n_epochs=args.n_epochs,
-                learning_rate=args.learning_rate,
-                saved_epoch=args.saved_epoch)
-
-
-def train_model(batch_size, n_epochs, learning_rate,
-                saved_epoch, save_path=configs.models,
-                plot_path=configs.plots):
+    batch_size = args.batch_size
+    n_epochs = args.n_epochs
+    learning_rate = args.learning_rate
+    saved_epoch = args.saved_epoch
+    save_path = configs.models
+    plot_path = configs.plots
 
     device = choose_device()
-
-    # Setup save directories
-    if save_path:
-        save_path = os.path.join(save_path)
-        os.makedirs(save_path, exist_ok=True)
-    if plot_path:
-        plot_path = os.path.join(plot_path)
-        os.makedirs(plot_path, exist_ok=True)
 
     # Load network
     net = my_model
@@ -63,10 +52,7 @@ def train_model(batch_size, n_epochs, learning_rate,
     for images, labels in test_loader:
         if(device == "cuda"):
             images, labels = images.cuda(), labels.cuda()
-
         bbox, pred1, pred2 = net(images)
-
-        _, result1 = torch.max(pred1, 1)
         _, result2 = torch.max(pred2, 1)
 
         total += labels.size(0)
