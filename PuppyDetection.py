@@ -4,7 +4,7 @@ import numpy as np
 import os.path as osp
 import matplotlib.cm as cm
 import torch
-import torch.hub
+#import torch.hub
 from torchvision import models, transforms
 
 from grad_cam import (

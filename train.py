@@ -16,6 +16,8 @@ from models import my_model
 from GIoU import bbox_loss
 from PuppyDetection import extract_object
 
+margin = 0.05
+
 
 def choose_device(use_cuda=True):
     cuda = use_cuda and torch.cuda.is_available()
@@ -78,6 +80,10 @@ def start(batch_size, n_epochs, learning_rate, saved_epoch):
                 # zero the parameter (weight) gradients
                 optimizer.zero_grad()
 
+                for p in my_model.parameters():
+                    print(p.grad.data)
+                    break
+
                 # forward pass to get outputs
                 bbox, pred1, pred2 = net(inputs)
 
@@ -85,8 +91,9 @@ def start(batch_size, n_epochs, learning_rate, saved_epoch):
                 loss1 = criterion(pred1, labels)
                 loss2 = criterion(pred2, labels)
                 loss3, _ = bbox_loss(bbox, red_bbox)
+                loss4 = max(0, (pred1 - pred2 + margin))
                 # search for IOU
-                loss = loss1 + loss2 + loss3
+                loss = loss1 + loss2 + loss3 + loss4
 
                 # backward pass to calculate the parameter gradients
                 loss.backward()
@@ -159,8 +166,9 @@ def start(batch_size, n_epochs, learning_rate, saved_epoch):
         loss1 = criterion(pred1, labels)
         loss2 = criterion(pred2, labels)
         loss3, _ = bbox_loss(bbox, red_bbox)
+        loss4 = max(0, (pred1 - pred2 + margin))
 
-        loss = loss1 + loss2 + loss3
+        loss = loss1 + loss2 + loss3 + loss4
 
         # update average test loss
         if(device == "cuda"):

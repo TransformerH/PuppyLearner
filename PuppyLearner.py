@@ -1,13 +1,5 @@
-import cv2
 import argparse
 from train import start
-
-'''
-#image_folder = "data/Images"
-image_folder = "test"
-output_folder = "test_result"
-train_data = "list/train_list.mat"
-test_data = "list/test_list.mat"'''
 
 
 def parse_args():
