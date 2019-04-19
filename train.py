@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 from __future__ import print_function, division
 import os
-import argparse
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -12,7 +11,6 @@ from torch.utils.data import DataLoader
 import torch.optim as optim
 import torch.nn as nn
 
-import configs
 from load import load_datasets
 from models import my_model
 from GIoU import bbox_loss

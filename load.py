@@ -1,6 +1,9 @@
 from torchvision import transforms
 from stanford_dogs_data import dogs
-import configs
+from os.path import join, expanduser
+
+root = expanduser("")
+imagesets = join(root, 'DATASETS', 'IMAGE')
 
 def load_datasets(input_size=224):
 
@@ -12,12 +15,12 @@ def load_datasets(input_size=224):
                              std=[0.2583, 0.2415, 0.2412])
     ])
 
-    train_dataset = dogs(root=configs.imagesets,
+    train_dataset = dogs(root=imagesets,
                              train=True,
                              cropped=False,
                              transform=input_transforms,
                              download=True)
-    test_dataset = dogs(root=configs.imagesets,
+    test_dataset = dogs(root=imagesets,
                             train=False,
                             cropped=False,
                             transform=input_transforms,
