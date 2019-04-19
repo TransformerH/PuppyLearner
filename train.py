@@ -15,6 +15,8 @@ import torch.nn as nn
 import configs
 from load import load_datasets
 from models import my_model
+from GIoU import bbox_loss
+from PuppyDetection import extract_object
 
 
 def choose_device(use_cuda=True):
@@ -23,13 +25,9 @@ def choose_device(use_cuda=True):
     return device
 
 
-def start(args):
-    batch_size = args.batch_size
-    n_epochs = args.n_epochs
-    learning_rate = args.learning_rate
-    saved_epoch = args.saved_epoch
-    save_path = configs.models
-    plot_path = configs.plots
+def start(batch_size, n_epochs, learning_rate, saved_epoch):
+    save_path = "./checkpoints"
+    plot_path = "./plot"
 
     device = choose_device()
 
@@ -50,6 +48,9 @@ def start(args):
     correct = 0
     total = 0
     for images, labels in test_loader:
+        # extract dog
+        dogs, red_bbox = extract_object(images)
+
         if(device == "cuda"):
             images, labels = images.cuda(), labels.cuda()
         bbox, pred1, pred2 = net(images)
@@ -85,8 +86,9 @@ def start(args):
                 # calculate the loss
                 loss1 = criterion(pred1, labels)
                 loss2 = criterion(pred2, labels)
+                loss3, _ = bbox_loss(bbox, red_bbox)
                 # search for IOU
-                loss = loss1 + loss2
+                loss = loss1 + loss2 + loss3
 
                 # backward pass to calculate the parameter gradients
                 loss.backward()
@@ -158,7 +160,9 @@ def start(args):
         # calculate the loss
         loss1 = criterion(pred1, labels)
         loss2 = criterion(pred2, labels)
-        loss = loss1 + loss2
+        loss3, _ = bbox_loss(bbox, red_bbox)
+
+        loss = loss1 + loss2 + loss3
 
         # update average test loss
         if(device == "cuda"):
@@ -167,7 +171,6 @@ def start(args):
             test_loss = test_loss + ((torch.ones(1) / (batch_i + 1)) * (loss.data - test_loss))
 
         # get the predicted class from the maximum value in the output-list of class scores
-        _, result1 = torch.max(pred1.data, 1)
         _, result2 = torch.max(pred2.data, 1)
 
         # compare predictions to true label

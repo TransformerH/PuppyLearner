@@ -52,12 +52,7 @@ def GIOU(boxP, boxG):
     Loss_GIoU = 1- GIoU
     return Loss_GIoU, Loss_IoU
 
-def main():
-    boxA = [2, 2, 3, 5];
-    boxB = [3, 4, 3, 5];
-   # iou = bb_intersection_over_union(boxA, boxB)
-    GIoU, IoU = GIOU(boxA, boxB)
-    print(GIoU, IoU)
+def bbox_loss(boxA, boxB):
+    GIoU_loss, IoU_loss = GIOU(boxA, boxB)
+    return GIoU_loss, IoU_loss
 
-if __name__ == '__main__':
-    main()

@@ -7,10 +7,13 @@ import torchvision
 
 num_classes = 200
 
-def my_model():
+class my_model():
     def __init__(self):
-        super(my_model,self).__init__()
+        super(my_model, self).__init__()
         vgg_model = torchvision.models.vgg16(pretrained=True)
+        for params in vgg_model.parameters():
+            params.requires_grad = False
+
         self.conv1_1 = nn.Sequential(*list(vgg_model.features.children())[0:4])
         self.conv1_2 = nn.Sequential(*list(vgg_model.features.children())[4:9])
         self.conv1_3 = nn.Sequential(*list(vgg_model.features.children())[9:16])

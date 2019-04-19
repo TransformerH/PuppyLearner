@@ -36,10 +36,8 @@ def get_classtable():
     return classes
 
 
-def preprocess(image_path):
-    print(image_path)
-    raw_image = cv2.imread(image_path)
-    raw_image = cv2.resize(raw_image, (224,) * 2)
+def preprocess(image):
+    raw_image = cv2.resize(image, (224,) * 2)
     image = transforms.Compose(
         [
             transforms.ToTensor(),
@@ -64,14 +62,23 @@ def save_gradcam(filename, gcam, raw_image, paper_cmap=False):
     # extract dog from colormap
     temp = cmap.astype(np.float)
     """TODO: tune the below parameters"""
-    rgb_lower = np.array([0, 0, 35], dtype='uint8')
-    rgb_upper = np.array([255, 255, 255], dtype='uint8')
-    mask = cv2.inRange(temp, rgb_lower, rgb_upper)
-    _, contours, _ = cv2.findContours(mask.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-    contour = sorted(contours, key=cv2.contourArea, reverse=True)[0]
-    x, y, w, h = cv2.boundingRect(contour)
+    rgb_lower1 = np.array([0, 0, 35], dtype='uint8')
+    rgb_upper1 = np.array([255, 255, 255], dtype='uint8')
+    mask1 = cv2.inRange(temp, rgb_lower1, rgb_upper1)
+    _, contours1, _ = cv2.findContours(mask1.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    contour1 = sorted(contours1, key=cv2.contourArea, reverse=True)[0]
+    x, y, w, h = cv2.boundingRect(contour1)
     cv2.rectangle(raw_image, (x, y), (x+w, y+h), (0, 255, 0), 2)
     dog = raw_image[y:y+h, x:x+w]
+
+    rgb_lower2 = np.array([127, 0, 35], dtype='uint8')
+    rgb_upper2 = np.array([255, 255, 255], dtype='uint8')
+    mask2 = cv2.inRange(temp, rgb_lower2, rgb_upper2)
+    _, contours2, _ = cv2.findContours(mask2.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    contour2 = sorted(contours2, key=cv2.contourArea, reverse=True)[0]
+    x, y, w, h = cv2.boundingRect(contour2)
+    cv2.rectangle(raw_image, (x, y), (x + w, y + h), (255, 0, 0), 2)
+    dog_face = raw_image[y:y + h, x:x + w]
     ####
 
     if paper_cmap:
@@ -81,7 +88,7 @@ def save_gradcam(filename, gcam, raw_image, paper_cmap=False):
         gcam = (cmap.astype(np.float) + raw_image.astype(np.float)) / 2
     cv2.imwrite(filename, np.uint8(gcam))
 
-    return dog
+    return dog, dog_face
 
 
 def save_sensitivity(filename, maps):
@@ -103,21 +110,21 @@ model_names = sorted(
 )
 
 
-def get_image_paths(image_folder):
+'''def get_image_paths(image_folder):
     image_paths = []
     for filename in os.listdir(image_folder):
         ext = os.path.splitext(filename)[-1].lower()
         if ext not in [".png", ".jpg", ".jpeg"]:
             continue
         image_paths.append(os.path.join(image_folder, filename))
-    return image_paths
+    return image_paths'''
 
 
-def extract_object(image_folder, output_dir, cuda = None):
+def extract_object(original_image, cuda = None):
     """
         Generate Grad-CAM at different layers of ResNet-152
         """
-
+    output_dir = "./output"
     device = get_device(cuda)
 
     # Synset words
@@ -131,15 +138,13 @@ def extract_object(image_folder, output_dir, cuda = None):
     target_layer = "layer4"
     target_class = 243  # "bull mastif"
 
-    image_paths = get_image_paths(image_folder)
+    #image_paths = get_image_paths(image_folder)
 
     # Images
     images = []
     raw_images = []
-    print("Images:")
-    for i, image_path in enumerate(image_paths):
-        print("\t#{}: {}".format(i, image_path))
-        image, raw_image = preprocess(image_path)
+    for image in enumerate(original_image):
+        image, raw_image = preprocess(image)
         images.append(image)
         raw_images.append(raw_image)
     images = torch.stack(images).to(device)
@@ -155,7 +160,7 @@ def extract_object(image_folder, output_dir, cuda = None):
     dogs = []
     regions = gcam.generate(target_layer=target_layer)
     for j in range(len(images)):
-        dog = save_gradcam(
+        dog, red_bbox = save_gradcam(
             filename=osp.join(
                 output_dir,
                 "{}-{}-gradcam-{}-{}.png".format(
@@ -168,5 +173,5 @@ def extract_object(image_folder, output_dir, cuda = None):
 
         dogs.append(dog)
 
-    return dogs
+    return dogs, red_bbox
 
