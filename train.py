@@ -62,6 +62,8 @@ def start(batch_size, n_epochs, learning_rate, saved_epoch):
                 # get the input images and their corresponding labels
                 original_images, labels = data
                 inputs, red_bbox = extract_object(original_images)
+                inputs = torch.squeeze(inputs, 1)
+                print("size: ", inputs.size())
                 if(device == "cuda"):
                     inputs, labels = inputs.cuda(), labels.cuda()
 

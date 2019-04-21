@@ -39,18 +39,6 @@ def get_classtable():
     return classes
 
 
-'''def preprocess(image):
-    #pdb.set_trace()
-    raw_image = cv2.resize(image, (224, 224))
-    image = transforms.Compose(
-        [
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-        ]
-    )(raw_image[..., ::-1].copy())
-    return image, raw_image'''
-
-
 def save_gradient(filename, gradient):
     gradient = gradient.cpu().numpy().transpose(1, 2, 0)
     gradient -= gradient.min()
@@ -73,6 +61,8 @@ def save_gradcam(gcam, raw_image, paper_cmap=False):
     contour1 = sorted(contours1, key=cv2.contourArea, reverse=True)[0]
     x, y, w, h = cv2.boundingRect(contour1)
     dog = raw_image[:, y:y+h, x:x+w]
+    dog = torch.unsqueeze(dog, 0)
+    dog = F.upsample(dog, (224, 224))
 
     rgb_lower2 = np.array([127, 0, 35], dtype='uint8')
     rgb_upper2 = np.array([255, 255, 255], dtype='uint8')
@@ -81,6 +71,8 @@ def save_gradcam(gcam, raw_image, paper_cmap=False):
     contour2 = sorted(contours2, key=cv2.contourArea, reverse=True)[0]
     x, y, w, h = cv2.boundingRect(contour2)
     dog_face = raw_image[:, y:y + h, x:x + w]
+    dog_face = torch.unsqueeze(dog_face, 0)
+    dog_face = F.upsample(dog_face, (224, 224))
     ####
     return dog, dog_face
 
@@ -153,11 +145,8 @@ def extract_object(original_image, cuda = None):
 
         dogs.append(dog)
         red_bboxs.append(red_bbox)
-    #for j in range(len(images)):
     tensor_dogs = torch.stack(dogs)
     tensor_red_bbox = torch.stack(red_bboxs)
 
-    #dogs = torch.FloatTensor(dogs)
-    #red_bboxs = torch.FloatTensor(red_bboxs)
     return tensor_dogs, tensor_red_bbox
 
