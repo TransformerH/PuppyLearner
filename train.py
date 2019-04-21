@@ -10,11 +10,14 @@ import torch.backends.cudnn as cudnn
 from torch.utils.data import DataLoader
 import torch.optim as optim
 import torch.nn as nn
+from torchvision import transforms
 
 from load import load_datasets
-from models import my_model
+import models
 from GIoU import bbox_loss
 from PuppyDetection import extract_object
+
+import pdb
 
 margin = 0.05
 
@@ -30,9 +33,10 @@ def start(batch_size, n_epochs, learning_rate, saved_epoch):
     plot_path = "./plot"
 
     device = choose_device()
+    my_model = models.my_model()
+    #pdb.set_trace()
+    my_model = my_model.to(device=device)
 
-    # Load network
-    net = my_model
 
     # Load dataset
     train_data, test_data, classes = load_datasets()
@@ -42,28 +46,11 @@ def start(batch_size, n_epochs, learning_rate, saved_epoch):
     # cross entropy loss combines softmax and nn.NLLLoss() in one single class.
     criterion = nn.NLLLoss()
     # stochastic gradient descent with a small learning rate
-    optimizer = optim.SGD(net.parameters(), lr=learning_rate)
-
-    # test before training
-    correct = 0
-    total = 0
-    for images, labels in test_loader:
-        # extract dog
-        dogs, red_bbox = extract_object(images)
-
-        if(device == "cuda"):
-            images, labels = images.cuda(), labels.cuda()
-        bbox, pred1, pred2 = net(images)
-        _, result2 = torch.max(pred2, 1)
-
-        total += labels.size(0)
-        correct += (result2 == labels).sum()
-    accuracy = 100.0 * correct.item() / total
-    print('Accuracy before training: ', accuracy)
+    optimizer = optim.SGD(my_model.parameters(), lr=learning_rate)
 
     # start training
     def train(n_epochs):
-        net.train()
+        my_model.train()
 
         loss_over_time = []
 
@@ -73,19 +60,16 @@ def start(batch_size, n_epochs, learning_rate, saved_epoch):
 
             for batch_i, data in enumerate(train_loader):
                 # get the input images and their corresponding labels
-                inputs, labels = data
+                original_images, labels = data
+                inputs, red_bbox = extract_object(original_images)
                 if(device == "cuda"):
                     inputs, labels = inputs.cuda(), labels.cuda()
 
+
                 # zero the parameter (weight) gradients
                 optimizer.zero_grad()
-
-                for p in my_model.parameters():
-                    print(p.grad.data)
-                    break
-
                 # forward pass to get outputs
-                bbox, pred1, pred2 = net(inputs)
+                bbox, pred1, pred2 = my_model(inputs)
 
                 # calculate the loss
                 loss1 = criterion(pred1, labels)
@@ -111,14 +95,14 @@ def start(batch_size, n_epochs, learning_rate, saved_epoch):
                     loss_over_time.append(avg_loss)
                     print('Epoch: {}, Batch: {}, Avg. Loss: {}'.format(output_epoch + 1, batch_i+1, avg_loss))
                     running_loss = 0.0
-            if output_epoch % 10 == 9: # save every 10 epochs
-                torch.save(net.state_dict(), 'saved_models/Net2_{}.pt'.format(output_epoch + 1))
+            if output_epoch % 10 == 0: # save every 10 epochs
+                torch.save(my_model.state_dict(), 'saved_models/Net2_{}.pt'.format(output_epoch + 1))
 
         print('Finished Training')
         return loss_over_time
 
-    if saved_epoch:
-        net.load_state_dict(torch.load('saved_models/Net2_{}.pt'.format(saved_epoch)))
+    # if saved_epoch:
+    #     my_model.load_state_dict(torch.load('saved_models/Net2_{}.pt'.format(saved_epoch)))
 
     # call train and record the loss over time
     training_loss = train(n_epochs)
@@ -150,17 +134,18 @@ def start(batch_size, n_epochs, learning_rate, saved_epoch):
     # set the module to evaluation mode
     # used to turn off layers that are only useful for training
     # like dropout and batch_norm
-    net.eval()
+    my_model.eval()
 
     for batch_i, data in enumerate(test_loader):
 
         # get the input images and their corresponding labels
-        inputs, labels = data
+        original_images, labels = data
+        images, red_bbox = extract_object(original_images)
         if(device == "cuda"):
             inputs, labels = inputs.cuda(), labels.cuda()
 
         # forward pass to get outputs
-        bbox, pred1, pred2 = net(inputs)
+        bbox, pred1, pred2 = my_model(inputs)
 
         # calculate the loss
         loss1 = criterion(pred1, labels)
@@ -216,7 +201,7 @@ def start(batch_size, n_epochs, learning_rate, saved_epoch):
         if(device == "cuda"):
             images, labels = images.cuda(), labels.cuda()
         # get predictions
-        preds = np.squeeze(net(images).data.max(1, keepdim=True)[1].cpu().numpy())
+        preds = np.squeeze(my_model(images).data.max(1, keepdim=True)[1].cpu().numpy())
         images = np.swapaxes(np.swapaxes(images.cpu().numpy(), 1, 2), 2, 3)
         for idx in np.arange(batch_size):
             ax = fig.add_subplot(batch_size/8, 8, idx+1, xticks=[], yticks=[])

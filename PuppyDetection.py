@@ -6,6 +6,9 @@ import matplotlib.cm as cm
 import torch
 #import torch.hub
 from torchvision import models, transforms
+import torch.nn as nn
+import pdb
+import torch.nn.functional as F
 
 from grad_cam import (
     BackPropagation,
@@ -28,7 +31,7 @@ def get_device(cuda):
 
 def get_classtable():
     classes = []
-    with open("test/synset_words.txt") as lines:
+    with open("synset_words.txt") as lines:
         for line in lines:
             line = line.strip().split(" ", 1)[1]
             line = line.split(", ", 1)[0].replace(" ", "_")
@@ -36,15 +39,16 @@ def get_classtable():
     return classes
 
 
-def preprocess(image):
-    raw_image = cv2.resize(image, (224,) * 2)
+'''def preprocess(image):
+    #pdb.set_trace()
+    raw_image = cv2.resize(image, (224, 224))
     image = transforms.Compose(
         [
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ]
     )(raw_image[..., ::-1].copy())
-    return image, raw_image
+    return image, raw_image'''
 
 
 def save_gradient(filename, gradient):
@@ -55,39 +59,29 @@ def save_gradient(filename, gradient):
     cv2.imwrite(filename, np.uint8(gradient))
 
 
-def save_gradcam(filename, gcam, raw_image, paper_cmap=False):
+def save_gradcam(gcam, raw_image, paper_cmap=False):
     gcam = gcam.cpu().numpy()
     cmap = cm.jet_r(gcam)[..., :3] * 255.0
-
+    #print("raw_image shape: ", raw_image.shape)
     # extract dog from colormap
     temp = cmap.astype(np.float)
     """TODO: tune the below parameters"""
     rgb_lower1 = np.array([0, 0, 35], dtype='uint8')
     rgb_upper1 = np.array([255, 255, 255], dtype='uint8')
     mask1 = cv2.inRange(temp, rgb_lower1, rgb_upper1)
-    _, contours1, _ = cv2.findContours(mask1.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    contours1, _ = cv2.findContours(mask1.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
     contour1 = sorted(contours1, key=cv2.contourArea, reverse=True)[0]
     x, y, w, h = cv2.boundingRect(contour1)
-    cv2.rectangle(raw_image, (x, y), (x+w, y+h), (0, 255, 0), 2)
-    dog = raw_image[y:y+h, x:x+w]
+    dog = raw_image[:, y:y+h, x:x+w]
 
     rgb_lower2 = np.array([127, 0, 35], dtype='uint8')
     rgb_upper2 = np.array([255, 255, 255], dtype='uint8')
     mask2 = cv2.inRange(temp, rgb_lower2, rgb_upper2)
-    _, contours2, _ = cv2.findContours(mask2.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    contours2, _ = cv2.findContours(mask2.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
     contour2 = sorted(contours2, key=cv2.contourArea, reverse=True)[0]
     x, y, w, h = cv2.boundingRect(contour2)
-    cv2.rectangle(raw_image, (x, y), (x + w, y + h), (255, 0, 0), 2)
-    dog_face = raw_image[y:y + h, x:x + w]
+    dog_face = raw_image[:, y:y + h, x:x + w]
     ####
-
-    if paper_cmap:
-        alpha = gcam[..., None]
-        gcam = alpha * cmap + (1 - alpha) * raw_image
-    else:
-        gcam = (cmap.astype(np.float) + raw_image.astype(np.float)) / 2
-    cv2.imwrite(filename, np.uint8(gcam))
-
     return dog, dog_face
 
 
@@ -109,15 +103,6 @@ model_names = sorted(
     if name.islower() and not name.startswith("__") and callable(models.__dict__[name])
 )
 
-
-'''def get_image_paths(image_folder):
-    image_paths = []
-    for filename in os.listdir(image_folder):
-        ext = os.path.splitext(filename)[-1].lower()
-        if ext not in [".png", ".jpg", ".jpeg"]:
-            continue
-        image_paths.append(os.path.join(image_folder, filename))
-    return image_paths'''
 
 
 def extract_object(original_image, cuda = None):
@@ -141,13 +126,16 @@ def extract_object(original_image, cuda = None):
     #image_paths = get_image_paths(image_folder)
 
     # Images
-    images = []
-    raw_images = []
-    for image in enumerate(original_image):
+    #images = []
+    #raw_images = []
+    '''for image in original_image:
+        #image = preprocess(image)
         image, raw_image = preprocess(image)
         images.append(image)
-        raw_images.append(raw_image)
-    images = torch.stack(images).to(device)
+        raw_images.append(raw_image)'''
+    #for i in range(len(original_image)):
+    #    print(original_image[i])
+    images = original_image.to(device)
 
     gcam = GradCAM(model=model)
     probs, ids = gcam.forward(images)
@@ -158,20 +146,18 @@ def extract_object(original_image, cuda = None):
 
     # Grad-CAM
     dogs = []
+    red_bboxs = []
     regions = gcam.generate(target_layer=target_layer)
     for j in range(len(images)):
-        dog, red_bbox = save_gradcam(
-            filename=osp.join(
-                output_dir,
-                "{}-{}-gradcam-{}-{}.png".format(
-                    j, "resnet152", target_layer, classes[target_class]
-                ),
-            ),
-            gcam=regions[j, 0],
-            raw_image=raw_images[j],
-        )
+        dog, red_bbox = save_gradcam(gcam=regions[j, 0], raw_image=original_image[j])
 
         dogs.append(dog)
+        red_bboxs.append(red_bbox)
+    #for j in range(len(images)):
+    tensor_dogs = torch.stack(dogs)
+    tensor_red_bbox = torch.stack(red_bboxs)
 
-    return dogs, red_bbox
+    #dogs = torch.FloatTensor(dogs)
+    #red_bboxs = torch.FloatTensor(red_bboxs)
+    return tensor_dogs, tensor_red_bbox
 

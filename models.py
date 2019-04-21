@@ -4,20 +4,22 @@ from __future__ import print_function, division
 import torch
 import torch.nn as nn
 import torchvision
-
+import pdb
 num_classes = 200
 
-class my_model():
+class my_model(nn.Module):
     def __init__(self):
         super(my_model, self).__init__()
         vgg_model = torchvision.models.vgg16(pretrained=True)
-        for params in vgg_model.parameters():
-            params.requires_grad = False
+        # for params in vgg_model.parameters():
+        #     params.requires_grad = False
 
         self.conv1_1 = nn.Sequential(*list(vgg_model.features.children())[0:4])
         self.conv1_2 = nn.Sequential(*list(vgg_model.features.children())[4:9])
         self.conv1_3 = nn.Sequential(*list(vgg_model.features.children())[9:16])
-        num_features = self.classifier[6].in_features
+        #pdb.set_trace()
+        #self=vgg_model
+        num_features = vgg_model.classifier[6].in_features
         self.fc1_1 = nn.Linear(num_features, num_classes)
         self.fc1_2 = nn.Linear(num_features, 4)
 
