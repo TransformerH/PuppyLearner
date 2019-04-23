@@ -16,15 +16,13 @@ def main():
     '''args = parse_args()
     batch_size = args.batch_size
     n_epochs = args.n_epochs
-    learning_rate = args.learning_rate
-    saved_epoch = args.saved_epoch'''
+    learning_rate = args.learning_rate'''
 
     batch_size = 4
-    n_epochs = 2
+    n_epochs = 100
     learning_rate = 0.001
-    saved_epoch = 1
 
-    start(batch_size, n_epochs, learning_rate, saved_epoch)
+    start(batch_size, n_epochs, learning_rate)
 
 
 if __name__ == '__main__':

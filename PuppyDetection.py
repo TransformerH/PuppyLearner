@@ -70,9 +70,10 @@ def save_gradcam(gcam, raw_image, paper_cmap=False):
     contours2, _ = cv2.findContours(mask2.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
     contour2 = sorted(contours2, key=cv2.contourArea, reverse=True)[0]
     x, y, w, h = cv2.boundingRect(contour2)
-    dog_face = raw_image[:, y:y + h, x:x + w]
-    dog_face = torch.unsqueeze(dog_face, 0)
-    dog_face = F.upsample(dog_face, (224, 224))
+    dog_face = [x, y, w, h]
+    dog_face = torch.tensor(dog_face)
+    #dog_face = torch.unsqueeze(dog_face, 0)
+    #dog_face = F.upsample(dog_face, (224, 224))
     ####
     return dog, dog_face
 
@@ -133,8 +134,6 @@ def extract_object(original_image, cuda = None):
     probs, ids = gcam.forward(images)
     ids_ = torch.LongTensor([[target_class]] * len(images)).to(device)
     gcam.backward(ids=ids_)
-
-    print("Generating Grad-CAM @{}".format(target_layer))
 
     # Grad-CAM
     dogs = []

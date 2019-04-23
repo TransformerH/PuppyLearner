@@ -5,7 +5,7 @@ from os.path import join, expanduser
 root = expanduser("")
 imagesets = join(root, 'DATASETS', 'IMAGE')
 
-def load_datasets(input_size=224):
+def load_datasets():
 
     input_transforms = transforms.Compose([
         transforms.RandomResizedCrop(224),

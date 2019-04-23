@@ -17,8 +17,6 @@ import models
 from GIoU import bbox_loss
 from PuppyDetection import extract_object
 
-import pdb
-
 margin = 0.05
 
 
@@ -28,34 +26,29 @@ def choose_device(use_cuda=True):
     return device
 
 
-def start(batch_size, n_epochs, learning_rate, saved_epoch):
-    save_path = "./checkpoints"
+def start(batch_size, n_epochs, learning_rate):
     plot_path = "./plot"
 
     device = choose_device()
     my_model = models.my_model()
-    #pdb.set_trace()
     my_model = my_model.to(device=device)
-
 
     # Load dataset
     train_data, test_data, classes = load_datasets()
     train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
     test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=True)
 
-    # cross entropy loss combines softmax and nn.NLLLoss() in one single class.
     criterion = nn.NLLLoss()
-    # stochastic gradient descent with a small learning rate
     optimizer = optim.SGD(my_model.parameters(), lr=learning_rate)
 
     # start training
     def train(n_epochs):
-        my_model.train()
-
+        least_loss = 999
         loss_over_time = []
 
+        my_model.train()
+
         for epoch in range(n_epochs):
-            output_epoch = epoch + saved_epoch
             running_loss = 0.0
 
             for batch_i, data in enumerate(train_loader):
@@ -67,7 +60,6 @@ def start(batch_size, n_epochs, learning_rate, saved_epoch):
                 if(device == "cuda"):
                     inputs, labels = inputs.cuda(), labels.cuda()
 
-
                 # zero the parameter (weight) gradients
                 optimizer.zero_grad()
                 # forward pass to get outputs
@@ -75,38 +67,47 @@ def start(batch_size, n_epochs, learning_rate, saved_epoch):
 
                 # calculate the loss
                 loss1 = criterion(pred1, labels)
+
                 loss2 = criterion(pred2, labels)
+
                 loss3, _ = bbox_loss(bbox, red_bbox)
-                loss4 = max(0, (pred1 - pred2 + margin))
-                # search for IOU
+                loss3 = torch.tensor(loss3)
+
+                temp1 = pred1[:, labels]
+                temp1 = temp1.detach().numpy()
+                temp2 = pred2[:, labels]
+                temp2 = temp2.detach().numpy()
+                loss4 = []
+                for i in range(batch_size):
+                    loss4.append(max(0, temp1[i][i] - temp2[i][i] + margin))
+                loss4 = torch.tensor(loss4)
+
                 loss = loss1 + loss2 + loss3 + loss4
+                print(loss)
 
-                # backward pass to calculate the parameter gradients
-                loss.backward()
-
-                # update the parameters
+                loss.mean().backward()
                 optimizer.step()
 
                 # print loss statistics
                 # to convert loss into a scalar and add it to running_loss, we use .item()
-                running_loss += loss.item()
+                #running_loss += loss.item()
+                running_loss += loss
 
                 if batch_i % 45 == 44:    # print every 45 batches
                     avg_loss = running_loss/45
                     # record and print the avg loss over the 100 batches
                     loss_over_time.append(avg_loss)
-                    print('Epoch: {}, Batch: {}, Avg. Loss: {}'.format(output_epoch + 1, batch_i+1, avg_loss))
+                    print('Epoch: {}, Batch: {}, Avg. Loss: {}'.format(epoch + 1, batch_i+1, avg_loss))
                     running_loss = 0.0
-            if output_epoch % 10 == 0: # save every 10 epochs
-                torch.save(my_model.state_dict(), 'saved_models/Net2_{}.pt'.format(output_epoch + 1))
+            if epoch % 10 == 0:      # save every 10 epochs
+                if(loss < least_loss):
+                    torch.save(my_model.state_dict(), 'checkpoint.pt')
+                    least_loss = loss
 
         print('Finished Training')
         return loss_over_time
 
-    # if saved_epoch:
-    #     my_model.load_state_dict(torch.load('saved_models/Net2_{}.pt'.format(saved_epoch)))
 
-    # call train and record the loss over time
     training_loss = train(n_epochs)
 
     # visualize the loss as the network trained
@@ -134,15 +135,14 @@ def start(batch_size, n_epochs, learning_rate, saved_epoch):
     class_total = list(0. for i in range(len(classes)))
 
     # set the module to evaluation mode
-    # used to turn off layers that are only useful for training
-    # like dropout and batch_norm
+    state = torch.load("checkpoint.pt")
+    my_model.load_state_dict(state)
     my_model.eval()
 
     for batch_i, data in enumerate(test_loader):
-
-        # get the input images and their corresponding labels
         original_images, labels = data
-        images, red_bbox = extract_object(original_images)
+        inputs, red_bbox = extract_object(original_images)
+        inputs = torch.squeeze(inputs, 1)
         if(device == "cuda"):
             inputs, labels = inputs.cuda(), labels.cuda()
 
@@ -151,23 +151,30 @@ def start(batch_size, n_epochs, learning_rate, saved_epoch):
 
         # calculate the loss
         loss1 = criterion(pred1, labels)
+
         loss2 = criterion(pred2, labels)
+
         loss3, _ = bbox_loss(bbox, red_bbox)
-        loss4 = max(0, (pred1 - pred2 + margin))
+        loss3 = torch.tensor(loss3)
+
+        temp1 = pred1[:, labels]
+        temp1 = temp1.detach().numpy()
+        temp2 = pred2[:, labels]
+        temp2 = temp2.detach().numpy()
+
+        loss4 = []
+        for i in range(batch_size):
+            loss4.append(max(0, temp1[i][i] - temp2[i][i] + margin))
+        loss4 =torch.tensor(loss4)
 
         loss = loss1 + loss2 + loss3 + loss4
 
-        # update average test loss
         if(device == "cuda"):
             test_loss = test_loss + ((torch.ones(1).cuda() / (batch_i + 1)) * (loss.data - test_loss))
         else:
             test_loss = test_loss + ((torch.ones(1) / (batch_i + 1)) * (loss.data - test_loss))
 
-        # get the predicted class from the maximum value in the output-list of class scores
         _, result2 = torch.max(pred2.data, 1)
-
-        # compare predictions to true label
-        # this creates a `correct` Tensor that holds the number of correctly classified images in a batch
         correct = np.squeeze(result2.eq(labels.data.view_as(result2)))
 
         # calculate test accuracy for *each* object class

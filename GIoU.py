@@ -9,7 +9,6 @@ def bb_intersection_over_union(boxA, boxB):
     areaA = boxA[2] * boxA[3];
     areaB = boxB[2] * boxB[3];
     areaI = (min(Arx, Brx) - max(Alx, Blx)) * (min(Ary, Bry) - max(Aly, Bly));
-    print(areaA + areaB - areaI)
     return areaI / (areaA + areaB - areaI)
 
 
@@ -18,12 +17,12 @@ def bb_intersection_over_union(boxA, boxB):
 # GIoU Algorithm: https://giou.stanford.edu/
 def GIOU(boxP, boxG):
     Plx = boxP[0]; Ply = boxP[1]; Prx = boxP[0] + boxP[2]; Pry = boxP[1] + boxP[3];
-    PxMax = max(Plx, Prx); PxMin = min(Plx, Prx);
-    PyMax = max(Ply, Pry); PyMin = min(Ply, Pry);
+    PxMax = max(Plx.item(), Prx.item()); PxMin = min(Plx.item(), Prx.item());
+    PyMax = max(Ply.item(), Pry.item()); PyMin = min(Ply.item(), Pry.item());
 
     Glx = boxG[0]; Gly = boxG[1]; Grx = boxG[0] + boxG[2]; Gry = boxG[1] + boxG[3];
-    GxMax = max(Glx, Grx); GxMin = min(Glx, Grx);
-    GyMax = max(Gly, Gry); GyMin = min(Gly, Gry);
+    GxMax = max(Glx.item(), Grx.item()); GxMin = min(Glx.item(), Grx.item());
+    GyMax = max(Gly.item(), Gry.item()); GyMin = min(Gly.item(), Gry.item());
 
     # calculate area
     gt_area = (GxMax - GxMin) * (GyMax - GyMin)
@@ -53,6 +52,11 @@ def GIOU(boxP, boxG):
     return Loss_GIoU, Loss_IoU
 
 def bbox_loss(boxA, boxB):
-    GIoU_loss, IoU_loss = GIOU(boxA, boxB)
-    return GIoU_loss, IoU_loss
+    giou_list = []
+    iou_list = []
+    for i in range(len(boxA)):
+        GIoU_loss, IoU_loss = GIOU(boxA[i], boxB[i])
+        giou_list.append(GIoU_loss)
+        iou_list.append(IoU_loss)
+    return giou_list, iou_list
 
