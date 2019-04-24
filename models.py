@@ -58,32 +58,35 @@ class my_model(nn.Module):
 
         #p1 = torch.tensor(p1)
         p1 = torch.unsqueeze(p1, dim=0)
-        p1 = F.upsample(p1, (224, 224))
+        p1 = F.upsample(p1, (224, 224), mode='bilinear',align_corners=False)
         p1 = torch.squeeze(p1, dim=0)
 
         #p2 = torch.tensor(p2)
         p2 = torch.unsqueeze(p2, dim=0)
-        p2 = F.upsample(p2, (224, 224))
+        p2 = F.upsample(p2, (224, 224), mode='bilinear',align_corners=False)
         p2 = torch.squeeze(p2, dim=0)
 
         #p3 = torch.tensor(p3)
         p3 = torch.unsqueeze(p3, dim=0)
-        p3 = F.upsample(p3, (224, 224))
+        p3 = F.upsample(p3, (224, 224), mode='bilinear',align_corners=False)
         p3 = torch.squeeze(p3, dim=0)
 
         #p4 = torch.tensor(p4)
         p4 = torch.unsqueeze(p4, dim=0)
-        p4 = F.upsample(p4, (224, 224))
+        p4 = F.upsample(p4, (224, 224), mode='bilinear',align_corners=False)
         p4 = torch.squeeze(p4, dim=0)
 
         y = [p1, p2, p3, p4]
 
         y = torch.stack(y, dim=0)
 
+
         out2 = self.conv2(y)
         out2 = out2.view([4, 25088])
         out2 = F.relu(self.fc2_1(out2))
         label2 = self.fc2_2(out2)
+
+        del y, out2, p1, p2, p3, p4, x, out1
 
         return bbox, label1, label2
 

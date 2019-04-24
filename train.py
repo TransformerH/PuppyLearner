@@ -16,6 +16,8 @@ from load import load_datasets
 import models
 from GIoU import bbox_loss
 from PuppyDetection import extract_object
+import torch.nn.functional as F
+import pdb
 
 margin = 0.05
 
@@ -28,11 +30,14 @@ def choose_device(use_cuda=True):
 
 def start(batch_size, n_epochs, learning_rate):
     plot_path = "./plot"
+    os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 
     device = choose_device()
-    device = 'cuda'
+  #  device = "cuda"
     my_model = models.my_model()
     my_model = my_model.to(device=device)
+    #extract_object = PuppyDetection.extract_object()
+    #extract_object = extract_object.to(device=device)
 
     # Load dataset
     train_data, test_data, classes = load_datasets()
@@ -40,6 +45,7 @@ def start(batch_size, n_epochs, learning_rate):
     test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=True)
 
     criterion = nn.NLLLoss()
+    criterion = criterion.to(device=device)
     optimizer = optim.SGD(my_model.parameters(), lr=learning_rate)
 
     # start training
@@ -54,16 +60,78 @@ def start(batch_size, n_epochs, learning_rate):
 
             for batch_i, data in enumerate(train_loader):
                 # get the input images and their corresponding labels
-                original_images, labels = data
-                inputs, red_bbox = extract_object(original_images)
-                inputs = torch.squeeze(inputs, 1)
-                print("size: ", inputs.size())
+
+
+#################################  read boxes list from file  #################################
+                dog_boxes = []
+                dog_head_boxes = []
+                
+                original_images, labels, fileNames = data
+
+
+                ##############to delete###########
+                '''save_box_path = os.getcwd() + "/boxes/"
+                print(save_box_path)
+                try:
+                    os.mkdir(save_box_path)
+                except OSError:
+                    print("Can't create folder")
+                dog_box, dog_head_box = extract_object(original_images)
+                # save to the file
+                print("len: ", len(fileNames))
+                for i in range(len(fileNames)):
+                    save_fileName = fileNames[i].split('.')[0]
+                    print("save_fileName: " + save_fileName)
+                    save_file_path = os.path.join(save_box_path, save_fileName + '.txt')
+                    with open(save_file_path, 'w') as f:
+                        for item in dog_box[i]:
+                            f.write("%s " % item)
+                        f.write("\n")
+                        for item in dog_head_box[i]:
+                            f.write("%s " % item)
+                    f.close()'''
+                ############to delete##########
+
+
+
+
+              #  original_images = original_images.cuda()
+              #   original_images = original_images
+                save_box_path = os.getcwd() + "/boxes/"
+                for i in range(len(fileNames)):
+                    save_fileName = fileNames[i].split('.')[0]
+                    save_file_path = os.path.join(save_box_path, save_fileName + '.txt')
+                    with open(save_file_path) as f:
+                        line = f.readlines()
+                    dog = list(map(int, line[0].split(' ')[:-1]))
+                    dog_head = list(map(int, line[1].split(' ')[:-1]))
+                    dog_boxes.append(dog)
+                    dog_head_boxes.append(dog_head)
+                dog_head_boxes = torch.tensor(dog_head_boxes)
+
+                print("read test end")
+#################################  read boxes list from file  #################################
+
+                inputs = []
+                for i in range(len(dog_boxes)):
+                    input = torch.tensor(original_images[i][:, int(dog_boxes[i][0]):int(dog_boxes[i][0] + dog_boxes[i][2]),
+                                          int(dog_boxes[i][1]):int(dog_boxes[i][1] + dog_boxes[i][3])])
+                    input = torch.unsqueeze(input, dim=0)
+                    input = F.upsample(input, (224, 224), mode='bilinear', align_corners=False)
+                    input = torch.squeeze(input, dim=0)
+                    inputs.append(input)
+                inputs = torch.stack(inputs, dim=0)
+
+                '''inputs = torch.squeeze(inputs, 1)
+                print("size: ", inputs.size())'''
                 if(device == "cuda"):
                     inputs, labels = inputs.cuda(), labels.cuda()
 
                 # zero the parameter (weight) gradients
                 optimizer.zero_grad()
                 # forward pass to get outputs
+                #pdb.set_trace()
+
                 bbox, pred1, pred2 = my_model(inputs)
 
                 # calculate the loss
@@ -71,25 +139,30 @@ def start(batch_size, n_epochs, learning_rate):
 
                 loss2 = criterion(pred2, labels)
 
-                loss3, _ = bbox_loss(bbox, red_bbox)
+                loss3, _ = bbox_loss(bbox, dog_head_boxes)
                 loss3 = torch.tensor(loss3)
-                print("loss3: ", loss3)
 
                 temp1 = pred1[:, labels]
-                temp1 = temp1.detach().numpy()
+                temp1 = temp1.cpu().detach().numpy()
                 temp2 = pred2[:, labels]
-                temp2 = temp2.detach().numpy()
+                temp2 = temp2.cpu().detach().numpy()
                 loss4 = []
                 for i in range(batch_size):
                     loss4.append(max(0, temp1[i][i] - temp2[i][i] + margin))
+                #pdb.set_trace()
+                loss4 = np.mean(loss4)
+         #       loss4 = torch.tensor(loss4).cuda()
                 loss4 = torch.tensor(loss4)
-                print("loss4: ", loss4)
+                loss3 = torch.mean(loss3)
+                # loss3= torch.mean(loss3).cuda()
+                #pdb.set_trace()
 
                 loss = loss1 + loss2 + loss3 + loss4
                 print(loss)
 
-                loss.mean().backward()
+                loss.backward()
                 optimizer.step()
+                optimizer.zero_grad()
 
                 # print loss statistics
                 # to convert loss into a scalar and add it to running_loss, we use .item()
@@ -102,6 +175,7 @@ def start(batch_size, n_epochs, learning_rate):
                     loss_over_time.append(avg_loss)
                     print('Epoch: {}, Batch: {}, Avg. Loss: {}'.format(epoch + 1, batch_i+1, avg_loss))
                     running_loss = 0.0
+                break #revised, not right
             if epoch % 10 == 0:      # save every 10 epochs
                 if(loss < least_loss):
                     torch.save(my_model.state_dict(), 'checkpoint.pt')
@@ -110,8 +184,9 @@ def start(batch_size, n_epochs, learning_rate):
         print('Finished Training')
         return loss_over_time
 
-
+    #pdb.set_trace()
     training_loss = train(n_epochs)
+    
 
     # visualize the loss as the network trained
     fig = plt.figure()
@@ -143,9 +218,61 @@ def start(batch_size, n_epochs, learning_rate):
     my_model.eval()
 
     for batch_i, data in enumerate(test_loader):
-        original_images, labels = data
-        inputs, red_bbox = extract_object(original_images)
-        inputs = torch.squeeze(inputs, 1)
+        dog_boxes = []
+        dog_head_boxes = []
+
+        original_images, labels, fileNames = data
+
+        ##############to delete###########
+        '''save_box_path = os.getcwd() + "/boxes/"
+        print(save_box_path)
+        try:
+            os.mkdir(save_box_path)
+        except OSError:
+            print("Can't create folder")
+        dog_box, dog_head_box = extract_object(original_images)
+        # save to the file
+        print("len: ", len(fileNames))
+        for i in range(len(fileNames)):
+            save_fileName = fileNames[i].split('.')[0]
+            print("save_fileName: " + save_fileName)
+            save_file_path = os.path.join(save_box_path, save_fileName + '.txt')
+            with open(save_file_path, 'w') as f:
+                for item in dog_box[i]:
+                    f.write("%s " % item)
+                f.write("\n")
+                for item in dog_head_box[i]:
+                    f.write("%s " % item)
+            f.close()'''
+        ############to delete##########
+
+        #  original_images = original_images.cuda()
+        #   original_images = original_images
+        save_box_path = os.getcwd() + "/boxes/"
+        for i in range(len(fileNames)):
+            save_fileName = fileNames[i].split('.')[0]
+            save_file_path = os.path.join(save_box_path, save_fileName + '.txt')
+            with open(save_file_path) as f:
+                line = f.readlines()
+            dog = list(map(int, line[0].split(' ')[:-1]))
+            dog_head = list(map(int, line[1].split(' ')[:-1]))
+            dog_boxes.append(dog)
+            dog_head_boxes.append(dog_head)
+        dog_head_boxes = torch.tensor(dog_head_boxes)
+
+        print("read test end")
+        #################################  read boxes list from file  #################################
+
+        inputs = []
+        for i in range(len(dog_boxes)):
+            input = torch.tensor(original_images[i][:, int(dog_boxes[i][0]):int(dog_boxes[i][0] + dog_boxes[i][2]),
+                                 int(dog_boxes[i][1]):int(dog_boxes[i][1] + dog_boxes[i][3])])
+            input = torch.unsqueeze(input, dim=0)
+            input = F.upsample(input, (224, 224), mode='bilinear', align_corners=False)
+            input = torch.squeeze(input, dim=0)
+            inputs.append(input)
+        inputs = torch.stack(inputs, dim=0)
+
         if(device == "cuda"):
             inputs, labels = inputs.cuda(), labels.cuda()
 
@@ -157,18 +284,24 @@ def start(batch_size, n_epochs, learning_rate):
 
         loss2 = criterion(pred2, labels)
 
-        loss3, _ = bbox_loss(bbox, red_bbox)
+        loss3, _ = bbox_loss(bbox, dog_head_boxes)
         loss3 = torch.tensor(loss3)
 
         temp1 = pred1[:, labels]
-        temp1 = temp1.detach().numpy()
+        temp1 = temp1.cpu().detach().numpy()
         temp2 = pred2[:, labels]
-        temp2 = temp2.detach().numpy()
+        temp2 = temp2.cpu().detach().numpy()
 
         loss4 = []
         for i in range(batch_size):
             loss4.append(max(0, temp1[i][i] - temp2[i][i] + margin))
         loss4 =torch.tensor(loss4)
+        #loss4 = np.mean(loss4)
+        # loss4 = torch.mean(loss4).cuda()
+        loss4 = torch.mean(loss4)
+
+        # loss3= torch.mean(loss3).cuda()
+        loss3 = torch.mean(loss3)
 
         loss = loss1 + loss2 + loss3 + loss4
 
@@ -185,6 +318,7 @@ def start(batch_size, n_epochs, learning_rate):
         for l, c in zip(labels.data, correct):
             class_correct[l] += c.item()
             class_total[l] += 1
+        break #revised, not right
 
     print('Test Loss: {:.6f}\n'.format(test_loss.cpu().numpy()[0]))
 
@@ -200,34 +334,6 @@ def start(batch_size, n_epochs, learning_rate):
     print('\nTest Accuracy (Overall): %2d%% (%2d/%2d)' % (
         100. * np.sum(class_correct) / np.sum(class_total),
         np.sum(class_correct), np.sum(class_total)))
-
-    # Visualize Sample Results (Runs until a batch contains a )
-    # plot the images in the batch, along with predicted and true labels
-    fig = plt.figure(figsize=(batch_size/4+5, batch_size/4+5))
-    misclassification_found = False
-    while(not misclassification_found):
-        fig.clf()
-        # obtain one batch of test images
-        dataiter = iter(test_loader)
-        images, labels = dataiter.next()
-        if(device == "cuda"):
-            images, labels = images.cuda(), labels.cuda()
-        # get predictions
-        preds = np.squeeze(my_model(images).data.max(1, keepdim=True)[1].cpu().numpy())
-        images = np.swapaxes(np.swapaxes(images.cpu().numpy(), 1, 2), 2, 3)
-        for idx in np.arange(batch_size):
-            ax = fig.add_subplot(batch_size/8, 8, idx+1, xticks=[], yticks=[])
-            ax.imshow(images[idx])
-            if preds[idx]==labels[idx]:
-                ax.set_title("{}".format(classes[preds[idx]], classes[labels[idx]]), color="green")
-            else:
-                ax.set_title("({})\n{}".format(classes[labels[idx]], classes[preds[idx]]), color="red", pad=.4)
-                misclassification_found = True
-    if plot_path:
-        plt.savefig(os.path.join(plot_path, "Results Visualization"))
-    else:
-        plt.show()
-    plt.clf()
 
 
 

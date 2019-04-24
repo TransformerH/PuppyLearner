@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 from tqdm import tqdm
-
+import pdb
 
 class _BaseWrapper(object):
     """
@@ -41,7 +41,7 @@ class _BaseWrapper(object):
         """
 
         one_hot = self._encode_one_hot(ids)
-        self.logits.backward(gradient=one_hot, retain_graph=True)
+        self.logits.backward(gradient=one_hot, retain_graph=False)
 
     def generate(self):
         raise NotImplementedError
@@ -134,6 +134,7 @@ class GradCAM(_BaseWrapper):
         for key, value in pool.items():
             for module in self.model.named_modules():
                 if id(module[1]) == key:
+                    #pdb.set_trace()
                     if module[0] == target_layer:
                         return value
         raise ValueError("Invalid layer name: {}".format(target_layer))
@@ -153,7 +154,9 @@ class GradCAM(_BaseWrapper):
         gcam = torch.mul(fmaps, weights).sum(dim=1, keepdim=True)
         gcam = F.relu(gcam)
 
-        gcam = F.upsample(gcam, self.image_shape, mode="bilinear", align_corners=False)
+        gcam = F.upsample(
+            gcam, self.image_shape, mode="bilinear", align_corners=False
+        )
 
         B, C, H, W = gcam.shape
         gcam = gcam.view(B, -1)

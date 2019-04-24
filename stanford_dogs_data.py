@@ -193,8 +193,8 @@ class dogs(data.Dataset):
 
         if self.target_transform:
             target_class = self.target_transform(target_class)
-
-        return image, target_class
+        image_name = image_name.replace('/', '_')
+        return image, target_class, image_name
 
     def download(self):
         import tarfile
