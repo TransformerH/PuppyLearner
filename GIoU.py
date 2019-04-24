@@ -51,6 +51,7 @@ def GIOU(boxP, boxG):
     Loss_GIoU = 1- GIoU
     return Loss_GIoU, Loss_IoU
 
+
 def bbox_loss(boxA, boxB):
     giou_list = []
     iou_list = []

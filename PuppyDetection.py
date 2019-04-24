@@ -62,7 +62,7 @@ def save_gradcam(gcam, raw_image, paper_cmap=False):
     x, y, w, h = cv2.boundingRect(contour1)
     dog = raw_image[:, y:y+h, x:x+w]
     dog = torch.unsqueeze(dog, 0)
-    dog = F.upsample(dog, (224, 224))
+    dog = F.upsample(dog, (224, 224), mode="bilinear", align_corners=False)
 
     rgb_lower2 = np.array([127, 0, 35], dtype='uint8')
     rgb_upper2 = np.array([255, 255, 255], dtype='uint8')
@@ -72,8 +72,6 @@ def save_gradcam(gcam, raw_image, paper_cmap=False):
     x, y, w, h = cv2.boundingRect(contour2)
     dog_face = [x, y, w, h]
     dog_face = torch.tensor(dog_face)
-    #dog_face = torch.unsqueeze(dog_face, 0)
-    #dog_face = F.upsample(dog_face, (224, 224))
     ####
     return dog, dog_face
 
@@ -116,18 +114,8 @@ def extract_object(original_image, cuda = None):
     target_layer = "layer4"
     target_class = 243  # "bull mastif"
 
-    #image_paths = get_image_paths(image_folder)
 
     # Images
-    #images = []
-    #raw_images = []
-    '''for image in original_image:
-        #image = preprocess(image)
-        image, raw_image = preprocess(image)
-        images.append(image)
-        raw_images.append(raw_image)'''
-    #for i in range(len(original_image)):
-    #    print(original_image[i])
     images = original_image.to(device)
 
     gcam = GradCAM(model=model)

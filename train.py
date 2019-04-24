@@ -30,6 +30,7 @@ def start(batch_size, n_epochs, learning_rate):
     plot_path = "./plot"
 
     device = choose_device()
+    device = 'cuda'
     my_model = models.my_model()
     my_model = my_model.to(device=device)
 
@@ -72,6 +73,7 @@ def start(batch_size, n_epochs, learning_rate):
 
                 loss3, _ = bbox_loss(bbox, red_bbox)
                 loss3 = torch.tensor(loss3)
+                print("loss3: ", loss3)
 
                 temp1 = pred1[:, labels]
                 temp1 = temp1.detach().numpy()
@@ -81,6 +83,7 @@ def start(batch_size, n_epochs, learning_rate):
                 for i in range(batch_size):
                     loss4.append(max(0, temp1[i][i] - temp2[i][i] + margin))
                 loss4 = torch.tensor(loss4)
+                print("loss4: ", loss4)
 
                 loss = loss1 + loss2 + loss3 + loss4
                 print(loss)

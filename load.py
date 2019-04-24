@@ -5,8 +5,8 @@ from os.path import join, expanduser
 root = expanduser("")
 imagesets = join(root, 'DATASETS', 'IMAGE')
 
-def load_datasets():
 
+def load_datasets():
     input_transforms = transforms.Compose([
         transforms.RandomResizedCrop(224),
         transforms.RandomHorizontalFlip(),
