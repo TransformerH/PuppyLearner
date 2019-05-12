@@ -19,8 +19,8 @@ def main():
     learning_rate = args.learning_rate'''
 
     batch_size = 4
-    n_epochs = 1
-    learning_rate = 0.001
+    n_epochs = 70
+    learning_rate = 0.0005
 
     start(batch_size, n_epochs, learning_rate)
 

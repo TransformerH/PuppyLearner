@@ -33,18 +33,18 @@ def start(batch_size, n_epochs, learning_rate):
     os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 
     device = choose_device()
-  #  device = "cuda"
+    device = "cuda"
     my_model = models.my_model()
     my_model = my_model.to(device=device)
-    #extract_object = PuppyDetection.extract_object()
-    #extract_object = extract_object.to(device=device)
+    # extract_object = PuppyDetection.extract_object()
+    # extract_object = extract_object.to(device=device)
 
     # Load dataset
     train_data, test_data, classes = load_datasets()
     train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
     test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=True)
 
-    criterion = nn.NLLLoss()
+    criterion = nn.CrossEntropyLoss()
     criterion = criterion.to(device=device)
     optimizer = optim.SGD(my_model.parameters(), lr=learning_rate)
 
@@ -61,42 +61,13 @@ def start(batch_size, n_epochs, learning_rate):
             for batch_i, data in enumerate(train_loader):
                 # get the input images and their corresponding labels
 
-
-#################################  read boxes list from file  #################################
+                #################################  read boxes list from file  #################################
                 dog_boxes = []
                 dog_head_boxes = []
-                
+
                 original_images, labels, fileNames = data
+                original_images = original_images.cuda()
 
-
-                ##############to delete###########
-                '''save_box_path = os.getcwd() + "/boxes/"
-                print(save_box_path)
-                try:
-                    os.mkdir(save_box_path)
-                except OSError:
-                    print("Can't create folder")
-                dog_box, dog_head_box = extract_object(original_images)
-                # save to the file
-                print("len: ", len(fileNames))
-                for i in range(len(fileNames)):
-                    save_fileName = fileNames[i].split('.')[0]
-                    print("save_fileName: " + save_fileName)
-                    save_file_path = os.path.join(save_box_path, save_fileName + '.txt')
-                    with open(save_file_path, 'w') as f:
-                        for item in dog_box[i]:
-                            f.write("%s " % item)
-                        f.write("\n")
-                        for item in dog_head_box[i]:
-                            f.write("%s " % item)
-                    f.close()'''
-                ############to delete##########
-
-
-
-
-              #  original_images = original_images.cuda()
-              #   original_images = original_images
                 save_box_path = os.getcwd() + "/boxes/"
                 for i in range(len(fileNames)):
                     save_fileName = fileNames[i].split('.')[0]
@@ -109,13 +80,14 @@ def start(batch_size, n_epochs, learning_rate):
                     dog_head_boxes.append(dog_head)
                 dog_head_boxes = torch.tensor(dog_head_boxes)
 
-                print("read test end")
-#################################  read boxes list from file  #################################
+                #print("read test end")
+                #################################  read boxes list from file  #################################
 
                 inputs = []
                 for i in range(len(dog_boxes)):
-                    input = torch.tensor(original_images[i][:, int(dog_boxes[i][0]):int(dog_boxes[i][0] + dog_boxes[i][2]),
-                                          int(dog_boxes[i][1]):int(dog_boxes[i][1] + dog_boxes[i][3])])
+                    input = torch.tensor(
+                        original_images[i][:, int(dog_boxes[i][0]):int(dog_boxes[i][0] + dog_boxes[i][2]),
+                        int(dog_boxes[i][1]):int(dog_boxes[i][1] + dog_boxes[i][3])])
                     input = torch.unsqueeze(input, dim=0)
                     input = F.upsample(input, (224, 224), mode='bilinear', align_corners=False)
                     input = torch.squeeze(input, dim=0)
@@ -124,13 +96,13 @@ def start(batch_size, n_epochs, learning_rate):
 
                 '''inputs = torch.squeeze(inputs, 1)
                 print("size: ", inputs.size())'''
-                if(device == "cuda"):
+                if (device == "cuda"):
                     inputs, labels = inputs.cuda(), labels.cuda()
 
                 # zero the parameter (weight) gradients
                 optimizer.zero_grad()
                 # forward pass to get outputs
-                #pdb.set_trace()
+                # pdb.set_trace()
 
                 bbox, pred1, pred2 = my_model(inputs)
 
@@ -149,16 +121,16 @@ def start(batch_size, n_epochs, learning_rate):
                 loss4 = []
                 for i in range(batch_size):
                     loss4.append(max(0, temp1[i][i] - temp2[i][i] + margin))
-                #pdb.set_trace()
+                # pdb.set_trace()
                 loss4 = np.mean(loss4)
-         #       loss4 = torch.tensor(loss4).cuda()
-                loss4 = torch.tensor(loss4)
-                loss3 = torch.mean(loss3)
-                # loss3= torch.mean(loss3).cuda()
-                #pdb.set_trace()
+                loss4 = torch.tensor(loss4).cuda()
+                #        loss4 = torch.tensor(loss4)
+                # loss3 = torch.mean(loss3)
+                loss3 = torch.mean(loss3).cuda()
+                # pdb.set_trace()
 
                 loss = loss1 + loss2 + loss3 + loss4
-                print(loss)
+                #print(loss)
 
                 loss.backward()
                 optimizer.step()
@@ -166,46 +138,44 @@ def start(batch_size, n_epochs, learning_rate):
 
                 # print loss statistics
                 # to convert loss into a scalar and add it to running_loss, we use .item()
-                #running_loss += loss.item()
+                # running_loss += loss.item()
                 running_loss += loss
 
-                if batch_i % 45 == 44:    # print every 45 batches
-                    avg_loss = running_loss/45
+                if batch_i % 45 == 44:  # print every 45 batches
+                    avg_loss = running_loss / 45
                     # record and print the avg loss over the 100 batches
                     loss_over_time.append(avg_loss)
-                    print('Epoch: {}, Batch: {}, Avg. Loss: {}'.format(epoch + 1, batch_i+1, avg_loss))
+                    print('Epoch: {}, Batch: {}, Avg. Loss: {}'.format(epoch + 1, batch_i + 1, avg_loss))
                     running_loss = 0.0
-                break #revised, not right
-            if epoch % 10 == 0:      # save every 10 epochs
-                if(loss < least_loss):
+            if epoch % 5 == 0:  # save every 10 epochs
+                if (loss < least_loss):
                     torch.save(my_model.state_dict(), 'checkpoint.pt')
                     least_loss = loss
 
         print('Finished Training')
         return loss_over_time
 
-    #pdb.set_trace()
+    # pdb.set_trace()
     training_loss = train(n_epochs)
-    
 
     # visualize the loss as the network trained
-    fig = plt.figure()
-    plt.plot(45*np.arange(len(training_loss)), training_loss)
+    '''fig = plt.figure()
+    plt.plot(45 * np.arange(len(training_loss)), training_loss)
     plt.rc('xtick', labelsize=12)
     plt.rc('ytick', labelsize=12)
     plt.xlabel('Number of Batches', fontsize=12)
     plt.ylabel('loss', fontsize=12)
-    plt.ylim(0, 5.5) # consistent scale
+    plt.ylim(0, 5.5)  # consistent scale
     plt.tight_layout()
     if plot_path:
         plt.savefig(os.path.join(plot_path, "Loss_Over_Time"))
         print("saved")
     else:
         plt.show()
-    plt.clf()
+    plt.clf()'''
 
     # initialize tensor and lists to monitor test loss and accuracy
-    if(device == "cuda"):
+    if (device == "cuda"):
         test_loss = torch.zeros(1).cuda()
     else:
         test_loss = torch.zeros(1)
@@ -273,7 +243,7 @@ def start(batch_size, n_epochs, learning_rate):
             inputs.append(input)
         inputs = torch.stack(inputs, dim=0)
 
-        if(device == "cuda"):
+        if (device == "cuda"):
             inputs, labels = inputs.cuda(), labels.cuda()
 
         # forward pass to get outputs
@@ -295,17 +265,17 @@ def start(batch_size, n_epochs, learning_rate):
         loss4 = []
         for i in range(batch_size):
             loss4.append(max(0, temp1[i][i] - temp2[i][i] + margin))
-        loss4 =torch.tensor(loss4)
-        #loss4 = np.mean(loss4)
-        # loss4 = torch.mean(loss4).cuda()
-        loss4 = torch.mean(loss4)
+        loss4 = torch.tensor(loss4)
+        # loss4 = np.mean(loss4)
+        loss4 = torch.mean(loss4).cuda()
+        # loss4 = torch.mean(loss4)
 
-        # loss3= torch.mean(loss3).cuda()
-        loss3 = torch.mean(loss3)
+        loss3 = torch.mean(loss3).cuda()
+        # loss3 = torch.mean(loss3)
 
         loss = loss1 + loss2 + loss3 + loss4
 
-        if(device == "cuda"):
+        if (device == "cuda"):
             test_loss = test_loss + ((torch.ones(1).cuda() / (batch_i + 1)) * (loss.data - test_loss))
         else:
             test_loss = test_loss + ((torch.ones(1) / (batch_i + 1)) * (loss.data - test_loss))
@@ -318,7 +288,6 @@ def start(batch_size, n_epochs, learning_rate):
         for l, c in zip(labels.data, correct):
             class_correct[l] += c.item()
             class_total[l] += 1
-        break #revised, not right
 
     print('Test Loss: {:.6f}\n'.format(test_loss.cpu().numpy()[0]))
 
@@ -329,7 +298,6 @@ def start(batch_size, n_epochs, learning_rate):
                 np.sum(class_correct[i]), np.sum(class_total[i])))
         else:
             print('Test Accuracy of %5s: N/A (no training examples)' % (classes[i]))
-
 
     print('\nTest Accuracy (Overall): %2d%% (%2d/%2d)' % (
         100. * np.sum(class_correct) / np.sum(class_total),

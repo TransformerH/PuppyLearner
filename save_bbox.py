@@ -7,8 +7,8 @@ batch_size = 4
 
 # Load dataset
 train_data, test_data, classes = load_datasets()
-train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
-test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=True)
+train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=False)
+test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=False)
 
 #################################  write boxes list from file  #################################
 save_box_path = os.getcwd() + "/boxes/"
